@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+
+# Directories
+.settings/
+Debug/
+Drivers/
+Startup/
