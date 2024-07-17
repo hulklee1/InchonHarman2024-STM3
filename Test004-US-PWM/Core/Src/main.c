@@ -40,7 +40,8 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-TIM_HandleTypeDef htim2;
+TIM_HandleTypeDef htim3;
+TIM_HandleTypeDef htim5;
 
 UART_HandleTypeDef huart2;
 
@@ -52,45 +53,25 @@ UART_HandleTypeDef huart2;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
-static void MX_TIM2_Init(void);
+static void MX_TIM3_Init(void);
+static void MX_TIM5_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-int mux = 0;
+int ts = 0;  // Time_Echo_Start
+double dist = 0.0;
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-	if(++mux > 20) mux = 1;
-}
-
-// DRMFSLC : DO   RE   MI FA   SL   LA   CI
-//           C C?�� D D?�� E  F F?�� G G?�� A A?�� B
-enum { DO=0,Do,RE,Re,MI,FA,Fa,SL,Sl,LA,La,CI };
-double pitchF[] = {130.81,138.59,146.83,155.56,164.81,174.61,185.00,196.00,207.65,220.00,233.08,246.94};
-int p3[12];
-int arr = 1000, clk = 84000000;
-void calcPitch()
-{
-	for(int i=0;i<12;i++)
+	int te = htim5.Instance->CNT;
+	if(GPIO_Pin == Echo_Pin)
 	{
-		p3[i] = clk / (pitchF[i] * 2 * arr);
+		if(HAL_GPIO_ReadPin(Echo_GPIO_Port, Echo_Pin) == 1) ts = te;
+		else dist = (te - ts) * 0.00017;
 	}
 }
-void PlaySound(int pIdx, int rtm)
-{
-	htim2.Instance->PSC = p3[pIdx];
-	HAL_Delay(2000 / rtm);
-}
-
-int Song[] = {SL,SL,MI,FA,SL,LA,LA,SL,
-		SL,DO,MI,RE,DO,RE,MI,MI,RE,RE,DO,RE,DO,LA,LA,
-		SL,SL,SL,MI,RE,DO,RE,RE,MI,DO,RE,RE,MI,SL,LA,DO,MI,RE,
-		DO,RE,MI,MI,RE,RE,DO,RE,DO,LA,LA,SL,SL,SL,MI,RE,DO, -1 };
-int Rythm[] = {4,4,8,8,4,4,4,2,4,4,4,8,8,1,
-		4,4,4,4,4,8,8,4,4,4,4,4,8,8,1,4,4,4,4,4,4,4,4,4,4,4,8,8,1,
-		4,4,4,4,4,8,8,4,4,4,4,4,8,8,1};
 
 /* USER CODE END 0 */
 
@@ -123,34 +104,26 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USART2_UART_Init();
-  MX_TIM2_Init();
+  MX_TIM3_Init();
+  MX_TIM5_Init();
   /* USER CODE BEGIN 2 */
 
-  ProgramStart("Song");
-  calcPitch();
-  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
-  htim2.Instance->CCR3 = htim2.Instance->ARR / 2; // Duty rate 50%
+  ProgramStart("Ultra Sonic PWM");
+  printf("\033[?25l\n");  // cursor off
+  HAL_TIM_Base_Start(&htim5);
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  int sn = 2800;  // C3
-  mux = 1;
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	htim2.Instance->CCR3 = htim2.Instance->ARR / 2; // Duty rate 50%
-	  //  while(Song[i] != -1/*?��?��조건?��*/)
-	for(int i = 0;Song[i] != -1;i++)
-	{
-		PlaySound(Song[i], Rythm[i]);
-	}
-	htim2.Instance->CCR3 = 0;  // Duty rate 0;
-	//int f = 84000000/(htim2.Instance->PSC * htim2.Instance->ARR);
-	printf("Play Ended. Press B1 button for replay...\r\n");
-	Wait();
+	  double d = dist * 100;
+	  printf("\033[10;10H\033#3Distance : %.2f cm    ", d);
+	  printf("\033[11;10H\033#4Distance : %.2f cm    \n", d);
   }
   /* USER CODE END 3 */
 }
@@ -202,51 +175,106 @@ void SystemClock_Config(void)
 }
 
 /**
-  * @brief TIM2 Initialization Function
+  * @brief TIM3 Initialization Function
   * @param None
   * @retval None
   */
-static void MX_TIM2_Init(void)
+static void MX_TIM3_Init(void)
 {
 
-  /* USER CODE BEGIN TIM2_Init 0 */
+  /* USER CODE BEGIN TIM3_Init 0 */
 
-  /* USER CODE END TIM2_Init 0 */
+  /* USER CODE END TIM3_Init 0 */
 
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
   TIM_OC_InitTypeDef sConfigOC = {0};
 
-  /* USER CODE BEGIN TIM2_Init 1 */
+  /* USER CODE BEGIN TIM3_Init 1 */
 
-  /* USER CODE END TIM2_Init 1 */
-  htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 8400-1;
-  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = (1000)-1;
-  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_PWM_Init(&htim2) != HAL_OK)
+  /* USER CODE END TIM3_Init 1 */
+  htim3.Instance = TIM3;
+  htim3.Init.Prescaler = 140-1;
+  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim3.Init.Period = 40000-1;
+  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_Init(&htim3) != HAL_OK)
   {
     Error_Handler();
   }
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
   {
     Error_Handler();
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 0;
+  sConfigOC.Pulse = 6;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
+  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN TIM2_Init 2 */
+  /* USER CODE BEGIN TIM3_Init 2 */
 
-  /* USER CODE END TIM2_Init 2 */
-  HAL_TIM_MspPostInit(&htim2);
+  /* USER CODE END TIM3_Init 2 */
+  HAL_TIM_MspPostInit(&htim3);
+
+}
+
+/**
+  * @brief TIM5 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM5_Init(void)
+{
+
+  /* USER CODE BEGIN TIM5_Init 0 */
+
+  /* USER CODE END TIM5_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM5_Init 1 */
+
+  /* USER CODE END TIM5_Init 1 */
+  htim5.Instance = TIM5;
+  htim5.Init.Prescaler = 84-1;
+  htim5.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim5.Init.Period = 4294967295;
+  htim5.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim5.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim5) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim5, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim5, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM5_Init 2 */
+
+  /* USER CODE END TIM5_Init 2 */
 
 }
 
@@ -316,9 +344,15 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : Echo_Pin */
+  GPIO_InitStruct.Pin = Echo_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(Echo_GPIO_Port, &GPIO_InitStruct);
+
   /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
+  HAL_NVIC_SetPriority(EXTI4_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI4_IRQn);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
