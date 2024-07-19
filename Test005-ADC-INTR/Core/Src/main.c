@@ -62,6 +62,35 @@ static void MX_TIM3_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+int cx=39,cy=12;  // initial position
+int v0[3], v1[3], x, y, l, idx = 0;
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
+{
+	//HAL_ADC_Start(&hadc1);
+	//HAL_ADC_PollForConversion(&hadc1, 1000); // start Trigger
+	v1[idx] = HAL_ADC_GetValue(&hadc1);
+	v0[idx] = (v1[idx] / 1400) - 1;
+	switch(idx)
+	{
+	case 0: //x
+		x = cx + v0[idx];
+		x = (x > 78) ? 78 : (x < 0) ? 0 : x;
+		break;
+	case 1: //y
+		y = cy + v0[idx];
+		y = (y > 23) ? 23 : (y < 0) ? 0 : y;
+		break;
+	}
+	//printf("ADC value : %d\r\n", v);
+	//HAL_Delay(200);
+	if(++idx == 3) idx = 0;
+}
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+	HAL_ADC_Start_IT(&hadc1);
+}
+
 int xa[100],ya[100];
 void MakeItem()
 {
@@ -71,15 +100,13 @@ void MakeItem()
 	{
 		int v1 =  rand();  //0 ~ 2,147,483,647
 		int v2 =  rand();
-		//printf("v : %d\r\n", x);
-		//HAL_Delay(100);
 		xa[i] = (((double)v1 / 2147483647.)) * 80;
 		ya[i] = (((double)v2 / 2147483647.)) * 24;
-		//printf("[%d;%d](%d,%d)\r\n",v1, v2, xa[i], ya[i]);
 		printf("\033[%d;%dHo",ya[i], xa[i]);
 	}
 	printf("\n");
 }
+
 /* USER CODE END 0 */
 
 /**
@@ -114,39 +141,30 @@ int main(void)
   MX_ADC1_Init();
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
-  HAL_TIM_Base_Start(&htim3);
-  ProgramStart("ADC Polling");
+  HAL_TIM_Base_Start_IT(&htim3);
+  //HAL_ADC_Start_IT(&hadc1);
+  ProgramStart("ADC - Interrupt ");
   printf("\033[2J\033[?25l\n");  // Clear screen & cursor invisible
   MakeItem();
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  int sx=80,sy=24;	// screen size
-  int cx=39,cy=12;  // initial position
+  int dx=0,dy=0;
   while (1)
   {
+	//printf("Current ADC value (%d, %d) : %d\r\n", x, y, l);
+	int z = HAL_GPIO_ReadPin(Z_Axis_GPIO_Port, Z_Axis_Pin);
+	x = cx + dx, y = cy + dy;
+	printf("\033[0;0HCP(%d,%d,%d),NP(%d,%d),DP(%d,%d)", cx,cy,z,x,y,dx,dy);  // location info
+	printf("\033[%d;%dH \033[%d;%dH@\033[A\n", cy, cx, y, x);
+	dx = (-1)*((x < cx)?1:(x > cx)?-1:0);
+	dy = (-1)*((y < cy)?1:(y > cy)?-1:0);
+	cx = x; cy = y;  //save current pos
+	HAL_Delay(100);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	HAL_ADC_Start(&hadc1);
-	HAL_ADC_PollForConversion(&hadc1, 1000); // start Trigger
-	int v = ((double)(HAL_ADC_GetValue(&hadc1) / 1400)) - 1;
-	int x = cx + v;
-	x = (x > 78) ? 78 : (x < 0) ? 0 : x;
-	//HAL_ADC_Stop(&hadc1);  // skip
-	HAL_ADC_Start(&hadc1);
-	HAL_ADC_PollForConversion(&hadc1, 1000); // start Trigger
-	v = ((double)(HAL_ADC_GetValue(&hadc1) / 1400)) - 1;
-	int y = cy + v;
-	y = (y > 23) ? 23 : (y < 0) ? 0 : y;
-	//HAL_ADC_Start(&hadc1);
-	//HAL_ADC_PollForConversion(&hadc1, 1000); // start Trigger
-	int z = HAL_GPIO_ReadPin(Z_Axis_GPIO_Port, Z_Axis_Pin);
-	printf("\033[0;0HADC Value : (%d,%d,%d)", x, y, z);  // location info
-	printf("\033[%d;%dH \033[%d;%dH@\033[A\n", cy, cx, y, x);
-	cx = x; cy = y;  //save current pos
-	HAL_Delay(100);
   }
   /* USER CODE END 3 */
 }
@@ -227,7 +245,7 @@ static void MX_ADC1_Init(void)
   hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc1.Init.NbrOfConversion = 2;
+  hadc1.Init.NbrOfConversion = 3;
   hadc1.Init.DMAContinuousRequests = DISABLE;
   hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
@@ -239,7 +257,7 @@ static void MX_ADC1_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_10;
   sConfig.Rank = 1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_15CYCLES;
+  sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -249,6 +267,15 @@ static void MX_ADC1_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_11;
   sConfig.Rank = 2;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
+  */
+  sConfig.Channel = ADC_CHANNEL_4;
+  sConfig.Rank = 3;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -278,9 +305,9 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 0;
+  htim3.Init.Prescaler = 8400-1;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 65535;
+  htim3.Init.Period = 2000-1;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)

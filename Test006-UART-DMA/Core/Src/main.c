@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "myLib.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -36,50 +36,67 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
+extern myBuffer Buf;
+//char buf[100];
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-ADC_HandleTypeDef hadc1;
-
-TIM_HandleTypeDef htim3;
-
 UART_HandleTypeDef huart2;
+DMA_HandleTypeDef hdma_usart2_rx;
 
 /* USER CODE BEGIN PV */
+int head = 0, tail = 0;
+int GetBuffer(char* b)	// b : char array pointer for destination
+{
+	int len = 0;
+	char* s = &Buf;                   //.v0[0];
+	tail = MAX_BUF - huart2.hdmarx->Instance->NDTR;
+	if(tail > head)
+	{
+		memcpy(b, s + head, tail - head);		// from head to Tail
+		len = tail - head;  // length
+	}
+	else if(tail < head)
+	{
+		memcpy(b, s + head, MAX_BUF - head);	// from head to End
+		memcpy(b + MAX_BUF - head, s, tail);	// from Start to Tail
+		len = MAX_BUF - head + tail;  // length
+	}
+	else // tail == head
+	{
+		len = 0;
+	}
+	*(b + len) = 0;  // NULL
+	head = tail;
+	return len;
+}
 
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
-static void MX_ADC1_Init(void);
-static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-int xa[100],ya[100];
-void MakeItem()
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-	int i;
-	srand(htim3.Instance->CNT);
-	for(i=0;i<100;i++)
-	{
-		int v1 =  rand();  //0 ~ 2,147,483,647
-		int v2 =  rand();
-		//printf("v : %d\r\n", x);
-		//HAL_Delay(100);
-		xa[i] = (((double)v1 / 2147483647.)) * 80;
-		ya[i] = (((double)v2 / 2147483647.)) * 24;
-		//printf("[%d;%d](%d,%d)\r\n",v1, v2, xa[i], ya[i]);
-		printf("\033[%d;%dHo",ya[i], xa[i]);
-	}
-	printf("\n");
+
 }
+int n = 1;
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+	if(GPIO_Pin == B1_Pin) // n = 1, 2, 4, 8(Echo mode)
+	{
+		if((n <<= 1) > 8) n = 1;  // n *= 2
+	}
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -110,43 +127,39 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_USART2_UART_Init();
-  MX_ADC1_Init();
-  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
-  HAL_TIM_Base_Start(&htim3);
-  ProgramStart("ADC Polling");
-  printf("\033[2J\033[?25l\n");  // Clear screen & cursor invisible
-  MakeItem();
+
+  ProgramStart("UART - DMA");
+  HAL_UART_Receive_DMA(&huart2, &Buf, MAX_BUF);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  int sx=80,sy=24;	// screen size
-  int cx=39,cy=12;  // initial position
+  cls();
+  printf("Memory dump mode\r\n");
   while (1)
   {
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	HAL_ADC_Start(&hadc1);
-	HAL_ADC_PollForConversion(&hadc1, 1000); // start Trigger
-	int v = ((double)(HAL_ADC_GetValue(&hadc1) / 1400)) - 1;
-	int x = cx + v;
-	x = (x > 78) ? 78 : (x < 0) ? 0 : x;
-	//HAL_ADC_Stop(&hadc1);  // skip
-	HAL_ADC_Start(&hadc1);
-	HAL_ADC_PollForConversion(&hadc1, 1000); // start Trigger
-	v = ((double)(HAL_ADC_GetValue(&hadc1) / 1400)) - 1;
-	int y = cy + v;
-	y = (y > 23) ? 23 : (y < 0) ? 0 : y;
-	//HAL_ADC_Start(&hadc1);
-	//HAL_ADC_PollForConversion(&hadc1, 1000); // start Trigger
-	int z = HAL_GPIO_ReadPin(Z_Axis_GPIO_Port, Z_Axis_Pin);
-	printf("\033[0;0HADC Value : (%d,%d,%d)", x, y, z);  // location info
-	printf("\033[%d;%dH \033[%d;%dH@\033[A\n", cy, cx, y, x);
-	cx = x; cy = y;  //save current pos
-	HAL_Delay(100);
+	if(n == 8) // KBD echo mode
+	{
+		char arr[100];
+		if(GetBuffer(arr))  // > 0
+		{
+			printf("%s\r\n", arr);
+		}
+		HAL_Delay(500);
+	}
+	else
+	{
+	  printf("\033[3;0H\n");
+	  Dump(n);
+	  HAL_Delay(200);
+	}
   }
   /* USER CODE END 3 */
 }
@@ -198,113 +211,6 @@ void SystemClock_Config(void)
 }
 
 /**
-  * @brief ADC1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_ADC1_Init(void)
-{
-
-  /* USER CODE BEGIN ADC1_Init 0 */
-
-  /* USER CODE END ADC1_Init 0 */
-
-  ADC_ChannelConfTypeDef sConfig = {0};
-
-  /* USER CODE BEGIN ADC1_Init 1 */
-
-  /* USER CODE END ADC1_Init 1 */
-
-  /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion)
-  */
-  hadc1.Instance = ADC1;
-  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
-  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
-  hadc1.Init.ScanConvMode = ENABLE;
-  hadc1.Init.ContinuousConvMode = DISABLE;
-  hadc1.Init.DiscontinuousConvMode = ENABLE;
-  hadc1.Init.NbrOfDiscConversion = 1;
-  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
-  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
-  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc1.Init.NbrOfConversion = 2;
-  hadc1.Init.DMAContinuousRequests = DISABLE;
-  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
-  if (HAL_ADC_Init(&hadc1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
-  */
-  sConfig.Channel = ADC_CHANNEL_10;
-  sConfig.Rank = 1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_15CYCLES;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
-  */
-  sConfig.Channel = ADC_CHANNEL_11;
-  sConfig.Rank = 2;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN ADC1_Init 2 */
-
-  /* USER CODE END ADC1_Init 2 */
-
-}
-
-/**
-  * @brief TIM3 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM3_Init(void)
-{
-
-  /* USER CODE BEGIN TIM3_Init 0 */
-
-  /* USER CODE END TIM3_Init 0 */
-
-  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-
-  /* USER CODE BEGIN TIM3_Init 1 */
-
-  /* USER CODE END TIM3_Init 1 */
-  htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 0;
-  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 65535;
-  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM3_Init 2 */
-
-  /* USER CODE END TIM3_Init 2 */
-
-}
-
-/**
   * @brief USART2 Initialization Function
   * @param None
   * @retval None
@@ -334,6 +240,22 @@ static void MX_USART2_UART_Init(void)
   /* USER CODE BEGIN USART2_Init 2 */
 
   /* USER CODE END USART2_Init 2 */
+
+}
+
+/**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Stream5_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream5_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream5_IRQn);
 
 }
 
@@ -370,11 +292,9 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : Z_Axis_Pin */
-  GPIO_InitStruct.Pin = Z_Axis_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(Z_Axis_GPIO_Port, &GPIO_InitStruct);
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */

@@ -41,6 +41,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
+DMA_HandleTypeDef hdma_adc1;
 
 TIM_HandleTypeDef htim3;
 
@@ -53,6 +54,7 @@ UART_HandleTypeDef huart2;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_TIM3_Init(void);
@@ -62,23 +64,22 @@ static void MX_TIM3_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-int xa[100],ya[100];
-void MakeItem()
+union
 {
-	int i;
-	srand(htim3.Instance->CNT);
-	for(i=0;i<100;i++)
-	{
-		int v1 =  rand();  //0 ~ 2,147,483,647
-		int v2 =  rand();
-		//printf("v : %d\r\n", x);
-		//HAL_Delay(100);
-		xa[i] = (((double)v1 / 2147483647.)) * 80;
-		ya[i] = (((double)v2 / 2147483647.)) * 24;
-		//printf("[%d;%d](%d,%d)\r\n",v1, v2, xa[i], ya[i]);
-		printf("\033[%d;%dHo",ya[i], xa[i]);
-	}
-	printf("\n");
+	char	v0[500];
+	short	v1[10];
+	int		v2[20];
+	long	v3[10];
+} buf;
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
+{
+
+}
+int Mode = 0;  // ---- Normal Mode
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+	if(++Mode > 5) Mode = 1;
+	cls();  // Terminal screen clear
 }
 /* USER CODE END 0 */
 
@@ -110,43 +111,89 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_USART2_UART_Init();
   MX_ADC1_Init();
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
+  ProgramStart("ADC - DMA");
   HAL_TIM_Base_Start(&htim3);
-  ProgramStart("ADC Polling");
-  printf("\033[2J\033[?25l\n");  // Clear screen & cursor invisible
-  MakeItem();
+  HAL_ADC_Start_DMA(&hadc1, &buf, 3);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  int sx=80,sy=24;	// screen size
-  int cx=39,cy=12;  // initial position
+  int lm = 1;
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	HAL_ADC_Start(&hadc1);
-	HAL_ADC_PollForConversion(&hadc1, 1000); // start Trigger
-	int v = ((double)(HAL_ADC_GetValue(&hadc1) / 1400)) - 1;
-	int x = cx + v;
-	x = (x > 78) ? 78 : (x < 0) ? 0 : x;
-	//HAL_ADC_Stop(&hadc1);  // skip
-	HAL_ADC_Start(&hadc1);
-	HAL_ADC_PollForConversion(&hadc1, 1000); // start Trigger
-	v = ((double)(HAL_ADC_GetValue(&hadc1) / 1400)) - 1;
-	int y = cy + v;
-	y = (y > 23) ? 23 : (y < 0) ? 0 : y;
-	//HAL_ADC_Start(&hadc1);
-	//HAL_ADC_PollForConversion(&hadc1, 1000); // start Trigger
-	int z = HAL_GPIO_ReadPin(Z_Axis_GPIO_Port, Z_Axis_Pin);
-	printf("\033[0;0HADC Value : (%d,%d,%d)", x, y, z);  // location info
-	printf("\033[%d;%dH \033[%d;%dH@\033[A\n", cy, cx, y, x);
-	cx = x; cy = y;  //save current pos
-	HAL_Delay(100);
+	  switch(Mode)
+	  {
+	  case 1:
+		  if(lm != Mode) { cls(); lm = Mode; }
+		  int z = HAL_GPIO_ReadPin(Z_Axis_GPIO_Port,Z_Axis_Pin);
+		  //printf("\033[4;0HP(%d,%d,%d):%d         \n", val[0],val[1],z,val[2]);
+		  printf("\033[4;0HP(%d,%d,%d):%d         \n", buf.v1[0],buf.v1[1],z,buf.v1[2]);
+		  break;
+	  case 2:  // Byte dump
+		  if(lm != Mode) { cls(); lm = Mode; }
+		  printf("Memory dump mode\r\n");
+		  printf("\033[3;0H\n");
+		  for(int i=0;i<20;i++) // ROW index
+		  {
+			  for(int j=0;j<16;j++)	// COLUMN index
+			  {
+				  printf("%02x ", buf.v0[(i*16)+j]);
+				  if(j == 7) printf("  ");
+			  }
+			  printf("\r\n");
+		  }
+		  break;
+	  case 3:  // short dump
+		  if(lm != Mode) { cls(); lm = Mode; }
+		  printf("Memory dump mode\r\n");
+		  printf("\033[3;0H\n");
+		  for(int i=0;i<20;i++) // ROW index
+		  {
+			  for(int j=0;j<8;j++)	// COLUMN index
+			  {
+				  printf("%04x ", buf.v1[(i*8)+j]);
+				  if(j == 3) printf("  ");
+			  }
+			  printf("\r\n");
+		  }
+		  break;
+	  case 4:  // int dump
+		  if(lm != Mode) { cls(); lm = Mode; }
+		  printf("Memory dump mode\r\n");
+		  printf("\033[3;0H\n");
+		  for(int i=0;i<20;i++) // ROW index
+		  {
+			  for(int j=0;j<4;j++)	// COLUMN index
+			  {
+				  printf("%08x ", buf.v2[(i*4)+j]);
+				  if(j == 1) printf("  ");
+			  }
+			  printf("\r\n");
+		  }
+		  break;
+	  case 5:  // long dump
+		  if(lm != Mode) { cls(); lm = Mode; }
+		  printf("Memory dump mode\r\n");
+		  printf("\033[3;0H\n");
+		  for(int i=0;i<20;i++) // ROW index
+		  {
+			  for(int j=0;j<4;j++)	// COLUMN index
+			  {
+				  printf("%08X ", buf.v3[(i*4)+j]);
+				  if(j == 1) printf("  ");
+			  }
+			  printf("\r\n");
+		  }
+		  break;
+	  }
   }
   /* USER CODE END 3 */
 }
@@ -224,12 +271,12 @@ static void MX_ADC1_Init(void)
   hadc1.Init.ContinuousConvMode = DISABLE;
   hadc1.Init.DiscontinuousConvMode = ENABLE;
   hadc1.Init.NbrOfDiscConversion = 1;
-  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
-  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_RISING;
+  hadc1.Init.ExternalTrigConv = ADC_EXTERNALTRIGCONV_T3_TRGO;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc1.Init.NbrOfConversion = 2;
-  hadc1.Init.DMAContinuousRequests = DISABLE;
-  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  hadc1.Init.NbrOfConversion = 3;
+  hadc1.Init.DMAContinuousRequests = ENABLE;
+  hadc1.Init.EOCSelection = ADC_EOC_SEQ_CONV;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
   {
     Error_Handler();
@@ -239,7 +286,7 @@ static void MX_ADC1_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_10;
   sConfig.Rank = 1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_15CYCLES;
+  sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -249,6 +296,15 @@ static void MX_ADC1_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_11;
   sConfig.Rank = 2;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
+  */
+  sConfig.Channel = ADC_CHANNEL_4;
+  sConfig.Rank = 3;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -278,9 +334,9 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 0;
+  htim3.Init.Prescaler = 8400-1;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 65535;
+  htim3.Init.Period = 1000-1;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
@@ -292,7 +348,7 @@ static void MX_TIM3_Init(void)
   {
     Error_Handler();
   }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
   {
@@ -338,6 +394,22 @@ static void MX_USART2_UART_Init(void)
 }
 
 /**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA2_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA2_Stream0_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -375,6 +447,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(Z_Axis_GPIO_Port, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
