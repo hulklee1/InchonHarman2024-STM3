@@ -33,7 +33,12 @@
 		<link>
 			<name>Core/Src/myLib.c</name>
 			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/Test002-Timer/Core/Src/myLib.c</locationURI>
+			<location>C:/Users/user/source/repos/STM32/myLib/myLib.c</location>
+		</link>
+		<link>
+			<name>Core/Src/testLib.c</name>
+			<type>1</type>
+			<locationURI>PARENT-1-PROJECT_LOC/myLib/testLib.c</locationURI>
 		</link>
 	</linkedResources>
 </projectDescription>

@@ -45,31 +45,6 @@ UART_HandleTypeDef huart2;
 DMA_HandleTypeDef hdma_usart2_rx;
 
 /* USER CODE BEGIN PV */
-int head = 0, tail = 0;
-int GetBuffer(char* b)	// b : char array pointer for destination
-{
-	int len = 0;
-	char* s = &Buf;                   //.v0[0];
-	tail = MAX_BUF - huart2.hdmarx->Instance->NDTR;
-	if(tail > head)
-	{
-		memcpy(b, s + head, tail - head);		// from head to Tail
-		len = tail - head;  // length
-	}
-	else if(tail < head)
-	{
-		memcpy(b, s + head, MAX_BUF - head);	// from head to End
-		memcpy(b + MAX_BUF - head, s, tail);	// from Start to Tail
-		len = MAX_BUF - head + tail;  // length
-	}
-	else // tail == head
-	{
-		len = 0;
-	}
-	*(b + len) = 0;  // NULL
-	head = tail;
-	return len;
-}
 
 /* USER CODE END PV */
 

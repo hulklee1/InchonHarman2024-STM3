@@ -9,6 +9,13 @@
 #define INC_MYLIB_H_
 
 #define MAX_BUF 480
+#define LCD1602_ADDR  (0x27<<1)  //0x4E
+typedef struct
+{
+	char *key; //key[6];
+	int op_no;
+} myCMDSET;
+
 typedef union
 {
 	char	v0[MAX_BUF];
