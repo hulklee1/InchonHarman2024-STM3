@@ -30,8 +30,8 @@ void lcd_command(char cmd)  //  cmd : abcd efgh
 	char d1,d2,data[4];
 	d1 = cmd & 0xf0; 		//  d1 : abcd 0000
 	d2 = (cmd & 0x0f)<<4;	//  d2 : 0000 efgh ==> efgh 0000
-	data[0] = d1 | 0x0c;
-	data[1] = d1 | 0x08;
+	data[0] = d1 | 0x0c;	//  0c : 0000 1100 => write|enable|NC|RS(1/0)
+	data[1] = d1 | 0x08;	//  08 : 0000 1000 => write|disable|NC|RS
 	data[2] = d2 | 0x0c;
 	data[3] = d2 | 0x08;
 	HAL_I2C_Master_Transmit(&hi2c1, LCD1602_ADDR, data, 4, 10);

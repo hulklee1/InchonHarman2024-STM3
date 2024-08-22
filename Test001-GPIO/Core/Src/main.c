@@ -21,6 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "myLib.h"
 #include <stdio.h>
 /* USER CODE END Includes */
 
@@ -107,7 +108,7 @@ int main(void)
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
 
-  ProgramStart();
+  ProgramStart("GPIO");
   setvbuf(stdin, NULL, _IONBF, 0);  // input buffer clear
   int i; scanf("%d", &i);
   printf("your input number : %d\r\n", i);

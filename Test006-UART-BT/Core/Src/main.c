@@ -71,7 +71,7 @@ extern myCMDSET myCmd[];
 myBuffer *Buf1, *Buf2;  // null pointer
 char dum1, dum2;
 int idx1 = 0, idx2 = 0;
-int eol = 1;
+int eol = 3;
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
 	if(huart == &huart1)  // address of handle
@@ -151,8 +151,8 @@ int main(void)
 
   ProgramStart("UART - Bluetooth"); Cursor(1);
   printf("Select EOL \r\n 1:CRLF\r\n 2:LF\r\n 3:NULL \r\n 4:none\r\n");
-  //setvbuf(stdin, NULL, _IONBF, 0);  // BUFFER CLEAR
-  //scanf("%d", &eol);
+  setvbuf(stdin, NULL, _IONBF, 0);  // BUFFER CLEAR
+  scanf("%d", &eol);
 
   //char *t1 = "   Test string   ";
   //char *t2 = Trim(t1);   // "Test string"

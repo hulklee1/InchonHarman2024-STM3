@@ -15,6 +15,7 @@ myCMDSET myCmd[] =
 	{"LED", 2},
 	{"MOTOR", 2},
 	{"BUZZER", 2},
+	{"GO",1},
 	{NULL,0}
 };
 
